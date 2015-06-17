@@ -15,6 +15,7 @@
 
 @property (weak, nonatomic) IBOutlet UITableView *tableView;
 @property (strong, nonatomic) NSArray *movies;
+@property (strong, nonatomic) UIRefreshControl *refreshControl;
 
 @end
 
@@ -27,12 +28,28 @@
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
     
+    // Setup UIRefreshControl
+    self.refreshControl = [[UIRefreshControl alloc] init];
+    self.refreshControl.attributedTitle = [[NSAttributedString alloc] initWithString:@"Refreshing data..."];
+    [self.refreshControl addTarget:self action:@selector(onRefresh) forControlEvents:UIControlEventValueChanged];
+    [self.tableView addSubview:self.refreshControl];
+
+    [self fetchMovies];
+}
+
+- (void)fetchMovies {
     NSString *apiURLString = @"http://api.rottentomatoes.com/api/public/v1.0/lists/movies/box_office.json?apikey=dagqdghwaq3e3mxyrp7kmmj5&limit=20&country=us";
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:apiURLString]];
     [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
-        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        self.movies = dict[@"movies"];
-        [self.tableView reloadData];
+        
+        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+        if (200 == [httpResponse statusCode]) {
+            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            self.movies = dict[@"movies"];
+            [self.tableView reloadData];
+        } else {
+            NSLog(@"http status code != 200");
+        }
     }];
 }
 
@@ -69,5 +86,18 @@
     [destinationVC setValue:movie forKey:@"movie"];
 }
 
+- (void)onRefresh {
+    NSLog(@"refresh");
+    
+    [self.tableView reloadData];
+    [NSThread sleepForTimeInterval:2.0];
+    
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"HH:mm"];
+    NSString *lastUpdated = [NSString stringWithFormat:@"Last updated on %@", [formatter stringFromDate:[NSDate date]]];
+    NSLog(@"%@", lastUpdated);
+    self.refreshControl.attributedTitle =[[NSAttributedString alloc] initWithString:lastUpdated];
+    [self.refreshControl endRefreshing];
+}
 
 @end
